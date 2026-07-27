@@ -6,6 +6,14 @@
 - `backend`：FastAPI + Neo4j + MySQL 后端
 - `backend/sql/init_mysql.sql`：phpStudy MySQL 初始化脚本
 
+### 演示模式
+
+前端支持纯本地演示：
+
+- 设置 `frontend/.env.demo` 中的 `VITE_DEMO_MODE=true`
+- 运行 `npm run build:demo`
+- 该模式不会请求 MySQL 或 Neo4j
+
 ## 本地启动前需要启动的软件
 
 ### 1. phpStudy

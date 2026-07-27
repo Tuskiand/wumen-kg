@@ -19,8 +19,10 @@
   UserUpdateInput,
   VersionRecord,
 } from '@/types';
+import { demoDownload, demoRequest } from './mock';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 const TOKEN_KEY = 'auth-token';
 
 interface LoginResponse {
@@ -440,6 +442,10 @@ function mapEdge(item: GraphEdgeResponse): GraphEdge {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO_MODE) {
+    return demoRequest<T>(path, init);
+  }
+
   const headers = new Headers(init?.headers);
   const token = getToken();
   if (!(init?.body instanceof FormData)) {
@@ -477,6 +483,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function download(path: string, fallbackFilename: string): Promise<Headers> {
+  if (DEMO_MODE) {
+    return demoDownload(path, fallbackFilename);
+  }
+
   const headers = new Headers();
   const token = getToken();
   if (token) {
