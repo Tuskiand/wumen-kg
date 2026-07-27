@@ -1,119 +1,231 @@
 # 吴门医案知识图谱管理系统
 
-## 项目结构
+面向《吴门医案》知识组织、检索、图谱探索、图谱维护和医家辨证比较的前后端分离系统。
 
-- `frontend`：Vue 3 + Element Plus + G6 前端
-- `backend`：FastAPI + Neo4j + MySQL 后端
-- `backend/sql/init_mysql.sql`：phpStudy MySQL 初始化脚本
+项目包含两种使用方式：
 
-### 演示模式
+- **在线演示**：[https://wumen-kg-a54e.vercel.app](https://wumen-kg-a54e.vercel.app)，纯前端演示模式，不依赖 MySQL 和 Neo4j，适合答辩展示和 GitHub/Vercel 预览。
+- **本地完整运行**：启动前端、后端、MySQL、Neo4j，适合真实数据导入、图谱查询和算法联调。
 
-前端支持纯本地演示：
+## 一、用户使用说明
 
-- 设置 `frontend/.env.demo` 中的 `VITE_DEMO_MODE=true`
-- 运行 `npm run build:demo`
-- 该模式不会请求 MySQL 或 Neo4j
+### 1. 演示模式说明
 
-## 本地启动前需要启动的软件
+当前 Vercel 部署使用纯前端演示模式：
 
-### 1. phpStudy
-必须启动：
-- `Apache` 或 `Nginx`：非必须，仅在你需要用 phpMyAdmin 时方便
-- `MySQL`：必须启动
+- 演示地址：[https://wumen-kg-a54e.vercel.app](https://wumen-kg-a54e.vercel.app)
+- 管理员演示账号：`admin`，密码可填 `123456` 或任意内容
+- 普通用户演示账号：`demo`，密码可填 `123456` 或任意内容
+- 也可以点击注册，自定义用户名和密码；注册后会自动登录为普通用户
+- 不需要启动后端
+- 不需要连接 MySQL
+- 不需要连接 Neo4j
+- 页面数据来自前端内置演示数据
+- 注册和管理操作只用于演示，不会写入线上数据库
 
-当前项目默认 MySQL 配置：
-- 主机：`127.0.0.1`
-- 端口：`3307`
-- 数据库：`wumen_graph`
+### 2. 登录方式
 
-### 2. Docker Desktop
-必须启动：
-- `Docker Desktop`
-- `Neo4j` 容器
+| 角色 | 用户名 | 密码 | 进入页面 |
+| --- | --- | --- | --- |
+| 管理员 | `admin` | 任意密码，例如 `123456` | 后台管理 |
+| 普通用户 | `demo` | 任意密码，例如 `123456` | 用户端 |
+| 注册用户 | 自定义用户名 | 自定义密码 | 用户端 |
 
-当前项目默认 Neo4j 配置：
-- Browser：`http://localhost:7474`
-- Bolt：`bolt://localhost:7687`
+说明：
 
-如果你的 Neo4j 容器端口不是这组，需要同步修改 `backend/.env`。
+- 演示模式下密码不会真实校验。
+- 注册成功后会自动登录为普通用户。
+- 注册数据只存在当前浏览器页面状态中，不代表真实账号系统。
 
-## 首次初始化
+### 3. 用户端功能
 
-### 1. 初始化 MySQL
-在 phpStudy 的 MySQL 中导入：
-- `backend/sql/init_mysql.sql`
+| 功能 | 页面 | 用途 |
+| --- | --- | --- |
+| 首页概览 | `/portal/home` | 查看图谱统计和快捷入口 |
+| 知识检索 | `/portal/home` | 按关键词、实体类型、来源筛选节点 |
+| 图谱探索 | `/portal/graph` | 查看节点和关系网络，可缩放、拖拽、筛选 |
+| 实体详情 | `/portal/entity/:id` | 查看某个实体的摘要、来源和相邻关系 |
+| 路径查询 | `/portal/path` | 查询两个实体之间的关系路径 |
+| 医家比较 | `/portal/physician-compare` | 比较不同医家对同一病名的辨证差异 |
 
-导入完成后应存在：
-- 数据库：`wumen_graph`
-- 表：`users`
+### 4. 管理端功能
 
-### 2. 配置后端环境变量
-检查文件：
-- `backend/.env`
+管理员账号登录后可进入后台：
 
-至少确认以下配置正确：
+| 功能 | 页面 | 用途 |
+| --- | --- | --- |
+| 管理看板 | `/admin/dashboard` | 查看节点、关系、导入任务统计 |
+| 实体管理 | `/admin/entities` | 新增、编辑、删除图谱节点 |
+| 关系管理 | `/admin/relations` | 新增、编辑、删除图谱关系 |
+| 图谱导入 | `/admin/imports` | 上传三列表 CSV，校验并执行导入 |
+| 版本记录 | `/admin/versions` | 查看图谱版本记录 |
+| 审计记录 | `/admin/audits` | 查看系统操作记录 |
+| 用户管理 | `/admin/users` | 管理用户、角色和启用状态 |
+
+### 5. 导入文件格式
+
+真实后端模式下，管理端导入只接收单个三列表 CSV：
+
+```csv
+subject,relation,object
+薛雪(A医家),病名为,中风(B病名)
+中风(B病名),证型为,风痰闭阻证(C证型)
+风痰闭阻证(C证型),病机为,痰瘀阻络(E病机)
+```
+
+要求：
+
+- 表头必须严格为 `subject,relation,object`
+- `subject` 和 `object` 必须使用 `名称(类型)` 格式
+- 每次导入需要填写来源医案和导入批次
+- 当前导入策略是追加导入，不会覆盖旧图谱
+
+## 二、开发者使用说明
+
+### 1. 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| 前端 | Vue 3、TypeScript、Vite、Element Plus、Vue Router、ECharts |
+| 后端 | FastAPI、Pydantic、SQLAlchemy、PyMySQL、Neo4j Python Driver、JWT |
+| 数据库 | MySQL、Neo4j |
+| 图分析 | Neo4j GDS、NetworkX、NumPy |
+| 部署 | Vercel 前端演示部署，Docker Compose 辅助本地 Neo4j |
+
+### 2. 项目结构
+
+```text
+wumen-kg/
+├─ frontend/              # Vue 前端
+├─ backend/               # FastAPI 后端
+├─ backend/sql/           # MySQL 初始化脚本
+├─ test/                  # 后端单元测试
+├─ tools/                 # 数据转换辅助脚本
+├─ compose.yaml           # 本地 Neo4j/GDS 容器配置
+├─ DESIGN.md              # 前端视觉设计规范
+└─ README.md              # 项目说明
+```
+
+### 3. 前端演示模式
+
+适合只展示前端，不启动数据库：
+
+```powershell
+cd frontend
+npm install
+npm run dev -- --mode demo
+```
+
+构建演示版本：
+
+```powershell
+cd frontend
+npm run build:demo
+```
+
+演示模式由 `frontend/.env.demo` 控制：
 
 ```env
+VITE_DEMO_MODE=true
+```
+
+Vercel 部署配置位于：
+
+```text
+frontend/vercel.json
+```
+
+当前配置：
+
+- Install Command：`npm ci`
+- Build Command：`npm run build:demo`
+- Output Directory：`dist`
+- Root Directory：`frontend`
+
+### 4. 本地完整运行
+
+完整模式需要同时启动：
+
+1. phpStudy MySQL
+2. Docker Desktop
+3. Neo4j 容器
+4. FastAPI 后端
+5. Vite 前端
+
+### 5. 环境变量
+
+复制示例文件后再填写真实密码：
+
+```powershell
+copy .env.example .env
+copy backend\.env.example backend\.env
+```
+
+根目录 `.env` 用于 Docker Compose：
+
+```env
+NEO4J_AUTH=neo4j/replace-with-neo4j-password
+```
+
+后端 `backend/.env` 至少需要：
+
+```env
+APP_NAME=WuMen Medical Graph API
+APP_VERSION=0.1.0
+API_PREFIX=/api/v1
+DEBUG=true
 DEMO_MODE=false
+
+JWT_SECRET_KEY=replace-with-long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-admin-password
 
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3307
 MYSQL_DATABASE=wumen_graph
-MYSQL_USERNAME=你的MySQL用户名
-MYSQL_PASSWORD=你的MySQL密码
+MYSQL_USERNAME=replace-with-mysql-user
+MYSQL_PASSWORD=replace-with-mysql-password
 
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=你的Neo4j密码
+NEO4J_PASSWORD=replace-with-neo4j-password
 NEO4J_DATABASE=neo4j
 NEO4J_IMPORT_HOST_DIR=neo4j_import
 NEO4J_IMPORT_CONTAINER_DIR=/import
-
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=请设置强密码
 ```
 
-说明：
-- `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 会在后端启动时用于初始化/修正管理员账号
-- 如果 `DEMO_MODE=true`，后端会优先走演示数据，不适合当前真实导入联调
+注意：
 
-## 启动顺序
+- `.env` 和 `backend/.env` 不要提交到 GitHub。
+- 公开仓库只保留 `.env.example` 和 `backend/.env.example`。
 
-建议严格按这个顺序启动：
+### 6. 初始化 MySQL
 
-1. 启动 `phpStudy` 的 `MySQL`
-2. 启动 `Docker Desktop`
-3. 启动 `Neo4j` 容器
-4. 启动后端 `FastAPI`
-5. 启动前端 `Vite`
+在 phpStudy 的 MySQL 中导入：
 
-## 启动 Neo4j（Docker）
+```text
+backend/sql/init_mysql.sql
+```
 
-如果你还没有运行容器，可参考：
+导入后应存在：
+
+- 数据库：`wumen_graph`
+- 表：`users`
+
+### 7. 启动 Neo4j
+
+使用 Docker Compose：
 
 ```powershell
-docker run -d --name neo4j \
-  -p 7474:7474 \
-  -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/你的密码 \
-  -e NEO4J_server_directories_import=/import \
-  -v ${PWD}/backend/neo4j_import:/import:ro \
-  neo4j:5
+docker compose up -d neo4j
 ```
 
-如果容器已存在，直接启动：
+访问：
 
-```powershell
-docker start neo4j
-```
+- Neo4j Browser：`http://localhost:7474`
+- Bolt：`bolt://localhost:7687`
 
-检查容器状态：
-
-```powershell
-docker ps
-```
-
-## 启动后端
+### 8. 启动后端
 
 ```powershell
 cd backend
@@ -123,11 +235,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-启动成功后访问：
-- 接口文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- 健康检查：[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+验证：
 
-## 启动前端
+- API 文档：`http://127.0.0.1:8000/docs`
+- 健康检查：`http://127.0.0.1:8000/health`
+
+### 9. 启动前端
 
 ```powershell
 cd frontend
@@ -135,82 +248,51 @@ npm install
 npm run dev
 ```
 
-前端默认地址：
-- [http://localhost:5173](http://localhost:5173)
+默认地址：
 
-常用页面：
-- 登录页：[http://localhost:5173/login](http://localhost:5173/login)
-- 用户端检索：[http://localhost:5173/portal/home](http://localhost:5173/portal/home)
-- 图谱探索：[http://localhost:5173/portal/graph](http://localhost:5173/portal/graph)
-- 管理端控制台：[http://localhost:5173/admin/dashboard](http://localhost:5173/admin/dashboard)
+```text
+http://localhost:5173
+```
 
-## 当前本地开发是否需要启动 Nginx
+### 10. 测试
 
-本地开发阶段：
-- **不需要** 单独启动 Nginx
+后端测试位于 `test/`：
 
-只有在下面场景才需要：
-- 前后端统一反向代理
-- Docker Compose 部署
-- 生产环境发布
+```powershell
+python -m unittest discover -s test
+```
 
-## 当前导入方式说明
+前端构建检查：
 
-当前图谱导入为：
-- `追加导入`
-- 不做“同类型同名称合并”
-- 管理端只接收单个三列表 CSV
-- 后端会把三列表转成 Neo4j 可读的标准化临时 CSV，再通过 `LOAD CSV + Cypher` 导入
+```powershell
+cd frontend
+npm run build:demo
+```
 
-所以：
-- 不会覆盖上一批图谱
-- 不同批次即使同名实体也会同时保留
+### 11. 常见问题
 
-## 导入验证步骤
+| 问题 | 检查项 |
+| --- | --- |
+| 后端 MySQL 连接失败 | phpStudy MySQL 是否启动；端口是否为 `3307`；账号密码是否正确 |
+| 后端 Neo4j 连接失败 | Docker Desktop 是否启动；Neo4j 容器是否运行；`7687` 是否映射 |
+| 导入时 Neo4j 读不到 CSV | `backend/neo4j_import` 是否挂载到容器 `/import` |
+| 前端没有真实数据 | 后端是否启动；是否导入过 CSV；筛选条件是否过窄 |
+| Vercel 部署失败 | Root Directory 是否为 `frontend`；构建命令是否为 `npm run build:demo` |
 
-1. 登录管理端
-2. 打开导入任务页
-3. 选择单个三列表 CSV，表头必须严格为 `subject,relation,object`
-4. 填写：
-   - 来源医案
-   - 导入批次
-   - 可选 schema；不填则按通用图谱导入
-5. 先点“开始校验”
-6. 再点“执行导入”
-7. 到用户端图谱探索页查看结果
+## 三、公开仓库说明
 
-## 常见问题
+本仓库是毕业设计项目的安全存档版本：
 
-### 1. 后端启动报 MySQL 连接错误
-先检查：
-- phpStudy 的 MySQL 是否已启动
-- `backend/.env` 中 `MYSQL_PORT` 是否为 `3307`
-- 用户名密码是否正确
-- `wumen_graph.users` 表是否存在
+- 已排除真实 `.env`
+- 已排除本地数据库数据、日志、插件目录和构建产物
+- 已排除 `node_modules`
+- 前端演示模式可直接部署到 Vercel
 
-### 2. 后端启动报 Neo4j 连接错误
-先检查：
-- Docker Desktop 是否启动
-- Neo4j 容器是否启动
-- `7687` 是否已映射
-- `backend/.env` 中 `NEO4J_URI`、用户名、密码是否正确
+不应提交：
 
-### 2.1 导入时提示 Neo4j 读不到 CSV
-先检查：
-- `backend/.env` 中 `NEO4J_IMPORT_HOST_DIR` 是否指向宿主机真实目录
-- Neo4j 容器是否把该目录挂载到了 `NEO4J_IMPORT_CONTAINER_DIR`
-- 启动容器时是否显式设置了 `NEO4J_server_directories_import=/import`
-- 宿主机目录里是否确实生成了临时 CSV 文件
-
-### 3. 前端页面打开但没有数据
-先检查：
-- 后端是否正常运行在 `8000`
-- 浏览器是否能打开 `/docs`
-- 是否已经导入真实 CSV
-- 当前页面筛选条件是否过窄
-
-### 4. 导入后图谱没显示
-先检查：
-- 是否点了“执行导入”，而不是只做“开始校验”
-- 导入任务表里是否出现新增节点/关系统计
-- 图谱页是否设置了来源医案筛选，导致当前批次被过滤掉
+- 数据库账号密码
+- GitHub/Vercel Token
+- MySQL/Neo4j 真实数据目录
+- `frontend/node_modules`
+- `frontend/dist`
+- `backend/neo4j_import`
