@@ -1,0 +1,40 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+backend/.env
+
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build outputs
+/dist/
+frontend/dist/
+
+# Runtime data
+/data/
+data/
+/logs/
+logs/
+/plugins/
+plugins/
+backend/neo4j_import/
+neo4j_import/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Tool outputs
+converted_relations/
+tools/1/
+tools/output/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

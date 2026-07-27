@@ -1,0 +1,156 @@
+:root {
+  --el-color-primary: var(--tcm-primary);
+  --el-color-primary-dark-2: var(--tcm-primary-dark);
+  --el-color-primary-light-3: #a98960;
+  --el-color-primary-light-5: #c7ad8b;
+  --el-color-primary-light-7: #e0d0ba;
+  --el-color-primary-light-8: #ece1d2;
+  --el-color-primary-light-9: #f7f2ea;
+  --el-color-success: var(--tcm-green);
+  --el-color-warning: var(--tcm-orange);
+  --el-color-danger: var(--tcm-red);
+  --el-color-info: var(--tcm-blue-gray);
+  --el-bg-color: var(--tcm-card);
+  --el-fill-color-blank: rgba(255, 252, 245, 0.92);
+  --el-border-color: var(--tcm-border);
+  --el-border-color-light: #efe4d3;
+  --el-text-color-primary: var(--tcm-text);
+  --el-text-color-regular: var(--tcm-text);
+  --el-text-color-secondary: var(--tcm-muted);
+}
+
+.el-button {
+  border-radius: 10px;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--tcm-primary);
+  --el-button-border-color: var(--tcm-primary);
+  --el-button-hover-bg-color: var(--tcm-primary-dark);
+  --el-button-hover-border-color: var(--tcm-primary-dark);
+}
+
+.el-button--default {
+  --el-button-bg-color: rgba(255, 252, 245, 0.92);
+  --el-button-border-color: var(--tcm-border);
+  --el-button-text-color: var(--tcm-primary-dark);
+  --el-button-hover-bg-color: var(--tcm-bg-soft);
+  --el-button-hover-border-color: var(--tcm-primary);
+  --el-button-hover-text-color: var(--tcm-primary-dark);
+}
+
+.el-button.is-text,
+.el-button.is-link {
+  --el-button-text-color: var(--tcm-primary-dark);
+  --el-button-hover-text-color: var(--tcm-primary-dark);
+  --el-button-active-color: var(--tcm-primary-dark);
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.el-button.is-text:hover,
+.el-button.is-text:focus,
+.el-button.is-text:focus-visible,
+.el-button.is-text:active,
+.el-button.is-text:not(.is-disabled):hover,
+.el-button.is-text:not(.is-disabled):focus,
+.el-button.is-text:not(.is-disabled):focus-visible,
+.el-button.is-text:not(.is-disabled):active {
+  color: var(--tcm-primary-dark);
+  background: rgba(139, 110, 74, 0.12) !important;
+  background-color: rgba(139, 110, 74, 0.12) !important;
+  border-color: rgba(139, 110, 74, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.el-button.is-link:hover,
+.el-button.is-link:focus,
+.el-button.is-link:focus-visible,
+.el-button.is-link:active,
+.el-button.is-link:not(.is-disabled):hover,
+.el-button.is-link:not(.is-disabled):focus,
+.el-button.is-link:not(.is-disabled):focus-visible,
+.el-button.is-link:not(.is-disabled):active {
+  color: var(--tcm-primary-dark);
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.el-button.is-link.el-button--danger:hover,
+.el-button.is-link.el-button--danger:focus,
+.el-button.is-link.el-button--danger:active {
+  color: var(--tcm-red);
+}
+
+.el-card,
+.el-dialog,
+.el-drawer {
+  background: var(--tcm-card);
+  border-color: var(--tcm-border);
+  border-radius: 16px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  background: rgba(255, 252, 245, 0.92);
+  box-shadow: 0 0 0 1px var(--tcm-border) inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--tcm-primary) inset;
+}
+
+.el-table {
+  background: rgba(255, 252, 245, 0.88);
+}
+
+.el-table th.el-table__cell {
+  color: var(--tcm-primary-dark);
+  background: var(--tcm-bg-soft);
+}
+
+.el-table__body tr:hover > td.el-table__cell {
+  background: #f5ebdc !important;
+}
+
+.el-menu {
+  background: transparent;
+}
+
+.el-menu-item {
+  color: var(--tcm-primary-dark);
+  border-radius: 10px;
+}
+
+.el-menu-item:hover {
+  background: rgba(139, 110, 74, 0.12);
+}
+
+.el-menu-item.is-active {
+  color: #fff;
+  background: var(--tcm-primary);
+}
+
+.el-tabs__item.is-active,
+.el-tabs__item:hover {
+  color: var(--tcm-primary-dark);
+}
+
+.el-tabs__active-bar {
+  background: var(--tcm-primary);
+}
+
+.el-tag {
+  border-radius: 999px;
+}
+
+.el-dialog__header,
+.el-drawer__header {
+  border-bottom: 1px solid var(--tcm-border);
+}
