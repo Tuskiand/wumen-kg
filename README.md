@@ -101,8 +101,8 @@ wumen-kg/
 ├─ backend/sql/           # MySQL 初始化脚本
 ├─ test/                  # 后端单元测试
 ├─ tools/                 # 数据转换辅助脚本
+├─ archive/               # 归档文档：DESIGN / 需求 / 方案
 ├─ compose.yaml           # 本地 Neo4j/GDS 容器配置
-├─ DESIGN.md              # 前端视觉设计规范
 └─ README.md              # 项目说明
 ```
 
@@ -296,3 +296,5 @@ npm run build:demo
 - `frontend/node_modules`
 - `frontend/dist`
 - `backend/neo4j_import`
+
+历史文档已归档到 `archive/`。
