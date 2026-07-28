@@ -161,3 +161,4 @@ Vercel 前端演示配置位于 `frontend/vercel.json`：
 - `.env`、`backend/.env`、`node_modules`、`dist` 不纳入仓库。
 - 真实数据库和私密配置不提交到 GitHub。
 - 演示模式只用于展示，不代表后端联调结果。
+- 许可证：MIT，见 [LICENSE](./LICENSE)。
