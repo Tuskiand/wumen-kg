@@ -2,6 +2,8 @@
 import type { ECharts } from 'echarts';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import TcmEmpty from '@/components/tcm/TcmEmpty.vue';
 import TcmPageShell from '@/components/tcm/TcmPageShell.vue';
 import TcmPanel from '@/components/tcm/TcmPanel.vue';
@@ -98,6 +100,11 @@ const nodeSimilaritySourceLabels: Record<NodeSimilaritySource, string> = {
 const aiAnalysis = ref('');
 const aiModel = ref('');
 const aiLoading = ref(false);
+const aiAnalysisHtml = computed(() => {
+  if (!aiAnalysis.value) return '';
+  const raw = marked.parse(aiAnalysis.value, { gfm: true, breaks: true }) as string;
+  return DOMPurify.sanitize(raw);
+});
 const aiConfigVisible = ref(false);
 const aiConfigForm = reactive({
   apiKey: '',
@@ -1065,7 +1072,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div v-if="aiAnalysis" class="ai-analysis-content">
-        <div class="ai-analysis-text">{{ aiAnalysis }}</div>
+        <div class="ai-analysis-text markdown-body" v-html="aiAnalysisHtml"></div>
         <div v-if="aiModel" class="ai-analysis-meta">模型：{{ aiModel }}</div>
       </div>
       <div v-else class="ai-analysis-empty">
@@ -1433,5 +1440,26 @@ onBeforeUnmount(() => {
 
 .ai-analysis-empty {
   padding: 16px 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 16px 0 8px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.markdown-body h3 { font-size: 17px; }
+.markdown-body h4 { font-size: 15px; }
+.markdown-body p { margin: 6px 0; line-height: 1.7; }
+.markdown-body strong { font-weight: 600; color: var(--color-text-primary); }
+.markdown-body ul, .markdown-body ol { padding-left: 22px; margin: 6px 0; }
+.markdown-body li { margin: 3px 0; line-height: 1.6; }
+.markdown-body code {
+  background: rgba(139, 94, 52, 0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 13px;
 }
 </style>
