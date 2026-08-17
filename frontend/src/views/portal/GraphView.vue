@@ -5,26 +5,28 @@ import { getGraphSnapshot } from '@/api';
 import TcmEmpty from '@/components/tcm/TcmEmpty.vue';
 import TcmPageShell from '@/components/tcm/TcmPageShell.vue';
 import TcmPanel from '@/components/tcm/TcmPanel.vue';
-import { ENTITY_TYPES } from '@/constants/entityTypes';
+import { useSchema } from '@/composables/useSchema';
 import { SOURCE_OPTIONS } from '@/constants/sourceOptions';
 import type { GraphSnapshot } from '@/types';
 
 const text = {
   title: '图谱探索',
-  subtitle: '在总图上按来源、来源医案与实体类型筛选知识图谱。',
+  subtitle: '在总图上按名称、来源、来源医案与实体类型筛选知识图谱。',
   nodeCount: '节点',
   edgeCount: '关系',
   ability: '支持拖拽 / 缩放 / 关系标注',
   sourcePlaceholder: '来源',
   sourceCasePlaceholder: '来源医案，例如：中风、中寒',
   typePlaceholder: '实体类型',
+  namePlaceholder: '实体名称搜索',
   filter: '应用筛选',
 };
 const graphData = ref<GraphSnapshot>({ nodes: [], edges: [] });
-const entityTypes = ENTITY_TYPES;
+const { entityTypes } = useSchema();
 const sourceOptions = SOURCE_OPTIONS;
 const loading = ref(false);
 const filters = reactive({
+  name: '',
   source: '',
   sourceCase: '',
   entityType: '',
@@ -33,7 +35,7 @@ const filters = reactive({
 async function loadData() {
   loading.value = true;
   try {
-    graphData.value = await getGraphSnapshot(filters.source, filters.sourceCase, filters.entityType);
+    graphData.value = await getGraphSnapshot(filters.source, filters.sourceCase, filters.entityType, filters.name);
   } finally {
     loading.value = false;
   }
@@ -48,6 +50,7 @@ onMounted(async () => {
   <TcmPageShell :title="text.title" :subtitle="text.subtitle" icon="graph">
     <TcmPanel title="筛选条件" icon="search">
       <div class="toolbar">
+        <el-input v-model="filters.name" :placeholder="text.namePlaceholder" style="max-width: 200px" clearable @keyup.enter="loadData" />
         <el-select v-model="filters.source" :placeholder="text.sourcePlaceholder" clearable style="width: 200px">
           <el-option v-for="item in sourceOptions" :key="item" :label="item" :value="item" />
         </el-select>

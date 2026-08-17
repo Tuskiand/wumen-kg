@@ -24,6 +24,22 @@ export interface GraphSnapshot {
   edges: GraphEdge[];
 }
 
+export interface QueryPathItem {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  length: number;
+  typeSequence: string[];
+  nameSequence: string[];
+}
+
+export interface PathQueryResult {
+  paths: QueryPathItem[];
+  totalPaths: number;
+  sourceName: string;
+  targetName: string;
+  description: string;
+}
+
 export interface RankedGraphNode {
   id: string;
   name: string;

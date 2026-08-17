@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { bulkDeleteEntities, createEntity, deleteEntity, getEntities, updateEntity } from '@/api';
-import { ENTITY_TYPES } from '@/constants/entityTypes';
+import { useSchema } from '@/composables/useSchema';
 import { SOURCE_OPTIONS } from '@/constants/sourceOptions';
 import type { GraphNode } from '@/types';
 
@@ -29,7 +29,7 @@ const text = {
   save: '保存',
 };
 const sourceOptions = SOURCE_OPTIONS;
-const entityTypes = ENTITY_TYPES;
+const { entityTypes } = useSchema();
 const allRows = ref<GraphNode[]>([]);
 const selectedRows = ref<GraphNode[]>([]);
 const visible = ref(false);

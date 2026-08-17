@@ -1,6 +1,7 @@
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import BaseModel
 
 from app.core.config import Settings, get_settings
 from app.core.security import get_current_user
@@ -16,11 +17,23 @@ from app.schemas.graph import (
 )
 from app.services.graph_service import GraphService
 
+
+class SchemaResponse(BaseModel):
+    entity_types: list[str]
+    relation_types: list[str]
+
+
 router = APIRouter(prefix="/graph", tags=["graph"], dependencies=[Depends(get_current_user)])
 
 
 def get_graph_service(settings: Settings = Depends(get_settings)) -> GraphService:
     return GraphService(settings)
+
+
+@router.get("/schema", response_model=SchemaResponse)
+def get_schema(service: GraphService = Depends(get_graph_service)) -> SchemaResponse:
+    entity_types, relation_types = service.get_schema()
+    return SchemaResponse(entity_types=entity_types, relation_types=relation_types)
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -41,9 +54,10 @@ def get_snapshot(
     source: str = Query(default=""),
     source_case: str = Query(default=""),
     entity_type: str = Query(default=""),
+    name: str = Query(default=""),
     service: GraphService = Depends(get_graph_service),
 ) -> GraphSnapshot:
-    return service.snapshot(source, source_case, entity_type)
+    return service.snapshot(source, source_case, entity_type, name)
 
 
 @router.get("/entity/{entity_id}", response_model=EntityDetailResponse)
@@ -58,7 +72,10 @@ def get_neighbors(entity_id: str, service: GraphService = Depends(get_graph_serv
 
 @router.post("/path/query", response_model=PathQueryResponse)
 def query_path(payload: PathQueryRequest, service: GraphService = Depends(get_graph_service)) -> PathQueryResponse:
-    return service.path_query(payload.source_name, payload.target_name, payload.max_depth, payload.source_case)
+    return service.path_query(
+        payload.source_name, payload.target_name, payload.max_depth, payload.source_case,
+        payload.max_paths, payload.min_length, payload.node_types,
+    )
 
 
 @router.get("/compare/nodes", response_model=PhysicianNodeCompareResponse)

@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { bulkDeleteRelations, createRelation, deleteRelation, getRelations, updateRelation } from '@/api';
-import { RELATION_TYPES } from '@/constants/relationTypes';
+import { useSchema } from '@/composables/useSchema';
 import { SOURCE_OPTIONS } from '@/constants/sourceOptions';
 import type { GraphEdge } from '@/types';
 
@@ -26,7 +26,7 @@ const text = {
   save: '保存',
 };
 const sourceOptions = SOURCE_OPTIONS;
-const relationTypes = RELATION_TYPES;
+const { relationTypes } = useSchema();
 const allRows = ref<GraphEdge[]>([]);
 const selectedRows = ref<GraphEdge[]>([]);
 const visible = ref(false);

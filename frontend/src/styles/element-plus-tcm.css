@@ -137,6 +137,21 @@
   background: var(--tcm-primary);
 }
 
+.el-menu-item:focus,
+.el-menu-item:focus-visible,
+.el-menu-item:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+  caret-color: transparent !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.el-menu-item,
+.el-menu-item > span {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .el-tabs__item.is-active,
 .el-tabs__item:hover {
   color: var(--tcm-primary-dark);

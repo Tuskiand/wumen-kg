@@ -78,7 +78,7 @@ class Neo4jGraphRepository:
         edge_count = int(edge_records[0]["total"]) if edge_records else 0
         return node_count, edge_count
 
-    def snapshot(self, source: str = "", source_case: str = "", entity_type: str = "") -> GraphSnapshot:
+    def snapshot(self, source: str = "", source_case: str = "", entity_type: str = "", name: str = "") -> GraphSnapshot:
         node_records = self._run(
             """
             MATCH (n)
@@ -86,12 +86,14 @@ class Neo4jGraphRepository:
               AND ($source = '' OR n.source = $source)
               AND ($source_case = '' OR $source_case IN coalesce(n.source_cases, []))
               AND ($entity_type = '' OR n.type = $entity_type)
+              AND ($name = '' OR n.name CONTAINS $name)
             RETURN n
             LIMIT 300
             """,
             source=source,
             source_case=source_case,
             entity_type=entity_type,
+            name=name,
         )
         node_ids = [record["n"].get("id", "") for record in node_records]
         if not node_ids:
@@ -144,18 +146,26 @@ class Neo4jGraphRepository:
                 neighbors.append(node)
         return edges, neighbors
 
-    def get_path(self, source_name: str, target_name: str, max_depth: int, source_case: str = "") -> GraphSnapshot:
+    def get_path(self, source_name: str, target_name: str, max_depth: int, source_case: str = "",
+                  max_paths: int = 10, min_length: int = 1, node_types: list[str] | None = None) -> list[GraphSnapshot]:
         source_id = self._get_unique_node_id_by_name(source_name, source_case)
         target_id = self._get_unique_node_id_by_name(target_name, source_case)
         depth = int(max_depth)
         if depth < 1 or depth > 8:
             raise ValueError("路径最大深度必须在 1 到 8 之间")
+        if node_types is None:
+            node_types = []
         records = self._run(
             f"""
-            MATCH p = shortestPath((a {{id: $source_id}})-[*..{depth}]-(b {{id: $target_id}}))
-            WHERE ($source_case = '' OR ALL(rel IN relationships(p) WHERE $source_case IN coalesce(rel.source_cases, [])))
+            MATCH p = (a {{id: $source_id}})-[*..{depth}]-(b {{id: $target_id}})
+            WHERE (length(p) >= $min_length)
+              AND ($source_case = '' OR ALL(rel IN relationships(p) WHERE $source_case IN coalesce(rel.source_cases, [])))
+              AND ($node_types = [] OR ALL(n IN nodes(p)[1..size(nodes(p))-1] WHERE n.type IN $node_types))
+            WITH p, length(p) AS plen
+            ORDER BY plen ASC
+            LIMIT $limit
             RETURN [n IN nodes(p) | n] AS nodes,
-                   [r IN relationships(p) | {
+                   [r IN relationships(p) | {{
                      id: r.id,
                      type: coalesce(r.type, type(r)),
                      label: coalesce(r.label, r.type, type(r)),
@@ -163,31 +173,36 @@ class Neo4jGraphRepository:
                      target: endNode(r).id,
                      source_cases: coalesce(r.source_cases, []),
                      source_batches: coalesce(r.source_batches, [])
-                   }] AS rels
-            LIMIT 1
+                   }}] AS rels,
+                   plen
             """,
             source_id=source_id,
             target_id=target_id,
             source_case=source_case,
+            node_types=node_types,
+            min_length=min_length,
+            limit=max_paths,
         )
         if not records:
-            return GraphSnapshot(nodes=[], edges=[])
-        record = records[0]
-        return GraphSnapshot(
-            nodes=[self._node_from_record(node) for node in record["nodes"]],
-            edges=[
-                GraphEdge(
-                    id=rel.get("id", ""),
-                    source=rel.get("source", ""),
-                    target=rel.get("target", ""),
-                    type=rel.get("type", self.DEFAULT_RELATION_TYPE),
-                    label=rel.get("label"),
-                    source_cases=list(rel.get("source_cases", []) or []),
-                    source_batches=list(rel.get("source_batches", []) or []),
-                )
-                for rel in record["rels"]
-            ],
-        )
+            return []
+        snapshots: list[GraphSnapshot] = []
+        for record in records:
+            snapshots.append(GraphSnapshot(
+                nodes=[self._node_from_record(node) for node in record["nodes"]],
+                edges=[
+                    GraphEdge(
+                        id=rel.get("id", ""),
+                        source=rel.get("source", ""),
+                        target=rel.get("target", ""),
+                        type=rel.get("type", self.DEFAULT_RELATION_TYPE),
+                        label=rel.get("label"),
+                        source_cases=list(rel.get("source_cases", []) or []),
+                        source_batches=list(rel.get("source_batches", []) or []),
+                    )
+                    for rel in record["rels"]
+                ],
+            ))
+        return snapshots
 
     def get_physician_disease_subgraphs(self, disease: str) -> list[GraphSnapshot]:
         entity_types = ["A医家", "B病名", "C证型", "D病因", "E病机"]
@@ -279,7 +294,7 @@ class Neo4jGraphRepository:
 
     def get_physician_node_similarity(self, disease: str) -> dict[str, list[dict[str, object]]]:
         try:
-            self._run("CALL gds.list() YIELD name RETURN name LIMIT 1")
+            self._run("RETURN gds.version() AS version")
         except Exception as exc:  # pragma: no cover - depends on local GDS runtime
             raise ValueError("Neo4j GDS 不可用，节点比较无法执行。") from exc
 
@@ -290,7 +305,7 @@ class Neo4jGraphRepository:
 
     def get_physician_fastrp_payload(self, disease: str) -> dict[str, object]:
         try:
-            self._run("CALL gds.list() YIELD name RETURN name LIMIT 1")
+            self._run("RETURN gds.version() AS version")
         except Exception as exc:  # pragma: no cover - depends on local GDS runtime
             raise ValueError("Neo4j GDS 不可用，FastRP 无法执行。") from exc
 
@@ -774,6 +789,28 @@ class Neo4jGraphRepository:
             load_csv_uri=load_csv_uri,
         )
         return int(records[0]["total"]) if records else 0
+
+    def get_entity_types(self) -> list[str]:
+        records = self._run(
+            """
+            MATCH (n)
+            WHERE n.type IS NOT NULL
+            RETURN DISTINCT n.type AS type
+            ORDER BY type
+            """
+        )
+        return [r["type"] for r in records]
+
+    def get_relation_types(self) -> list[str]:
+        records = self._run(
+            """
+            MATCH ()-[r]->()
+            WHERE r.type IS NOT NULL
+            RETURN DISTINCT r.type AS type
+            ORDER BY type
+            """
+        )
+        return [r["type"] for r in records]
 
     def _run(self, cypher: str, **parameters):
         with self.driver.session(database=self.database) as session:

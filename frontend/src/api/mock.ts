@@ -390,9 +390,27 @@ export async function demoRequest<T>(path: string, init?: RequestInit): Promise<
   }
   if (pathname === '/graph/snapshot') {
     const entityType = url.searchParams.get('entity_type') ?? '';
-    const filteredNodes = nodes.filter((item) => (!entityType || item.type === entityType));
+    const name = url.searchParams.get('name') ?? '';
+    let filteredNodes = nodes.filter((item) => (!entityType || item.type === entityType));
+    if (name) filteredNodes = filteredNodes.filter((item) => item.name.includes(name));
     const ids = new Set(filteredNodes.map((item) => item.id));
     return sleep({ nodes: filteredNodes.map(rawNode), edges: edges.filter((item) => ids.has(item.source) && ids.has(item.target)).map(rawEdge) } as T);
+  }
+  if (pathname === '/graph/schema') {
+    const allTypes = [...new Set(nodes.map((n) => n.type))].sort();
+    const allRelationTypes = [...new Set(edges.map((e) => e.type))].sort();
+    return sleep({ entity_types: allTypes, relation_types: allRelationTypes } as T);
+  }
+  if (pathname === '/ai/analyze-physician-compare' && method === 'POST') {
+    return sleep({ analysis: '## 整体结论\n三位医家对"中风"的辨证思路各有侧重，但均围绕风、痰、虚三大病机展开。\n\n### 节点比较\n张璐与徐灵胎在辨证节点上的 Jaccard 相似度较高，说明二者对中风病因病机的认识有较大重叠。沈颋与其他两位医家的相似度较低，提示其辨证视角更为独特。\n\n### 辨证路径\n张璐的辨证路径完整率最高，说明其辨证逻辑链条最为完整。徐灵胎的路径覆盖更广，涉及更多病因类型。\n\n### 核心子图\n从子图结构看，三位医家的辨证网络存在明显差异，张璐偏向痰火论治，徐灵胎重视内外风相煽，沈颋侧重于肝肾阴虚。', model: 'deepseek-chat' } as T);
+  }
+  if (pathname === '/ai/config') {
+    if (method === 'GET') {
+      return sleep({ base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat', has_key: true } as T);
+    }
+    if (method === 'PUT') {
+      return sleep({ base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat', has_key: true } as T);
+    }
   }
   if (pathname.startsWith('/graph/entity/')) {
     const id = decodeURIComponent(pathname.split('/').pop() ?? '');

@@ -78,8 +78,10 @@ interface EntityDetailResponse {
 }
 
 interface PathQueryResponse {
-  nodes: GraphNodeResponse[];
-  edges: GraphEdgeResponse[];
+  paths: unknown[];
+  total_paths: number;
+  source_name: string;
+  target_name: string;
   description: string;
 }
 
@@ -669,17 +671,43 @@ export async function searchGraph(query = '', entityType = '', source = '', sour
   return { total: result.total, items: result.items.map(mapNode) };
 }
 
-export async function getGraphSnapshot(source = '', sourceCase = '', entityType = ''): Promise<GraphSnapshot> {
+export async function getGraphSnapshot(source = '', sourceCase = '', entityType = '', name = ''): Promise<GraphSnapshot> {
   const params = new URLSearchParams();
   if (source) params.set('source', source);
   if (sourceCase) params.set('source_case', sourceCase);
   if (entityType) params.set('entity_type', entityType);
+  if (name) params.set('name', name);
   const query = params.toString();
   const result = await request<GraphSnapshotResponse>(`/graph/snapshot${query ? `?${query}` : ''}`);
   return {
     nodes: result.nodes.map(mapNode),
     edges: result.edges.map(mapEdge),
   };
+}
+
+export async function getGraphSchema(): Promise<{ entityTypes: string[]; relationTypes: string[] }> {
+  const result = await request<{ entity_types: string[]; relation_types: string[] }>('/graph/schema');
+  return { entityTypes: result.entity_types, relationTypes: result.relation_types };
+}
+
+export async function getAiConfig(): Promise<{ baseUrl: string; model: string; hasKey: boolean }> {
+  const result = await request<{ base_url: string; model: string; has_key: boolean }>('/ai/config');
+  return { baseUrl: result.base_url, model: result.model, hasKey: result.has_key };
+}
+
+export async function updateAiConfig(config: { api_key: string; base_url: string; model: string }): Promise<{ baseUrl: string; model: string; hasKey: boolean }> {
+  const result = await request<{ base_url: string; model: string; has_key: boolean }>('/ai/config', {
+    method: 'PUT',
+    body: JSON.stringify(config),
+  });
+  return { baseUrl: result.base_url, model: result.model, hasKey: result.has_key };
+}
+
+export async function testAiConnection(config: { api_key: string; base_url: string; model: string }): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>('/ai/config/test', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
 }
 
 export async function getEntityDetail(id: string) {
@@ -691,14 +719,28 @@ export async function getEntityDetail(id: string) {
   };
 }
 
-export async function queryPath(sourceName: string, targetName: string, sourceCase = '') {
+export async function queryPath(
+  sourceName: string, targetName: string, sourceCase = '',
+  maxDepth = 4, maxPaths = 10, minLength = 1, nodeTypes: string[] = [],
+) {
   const result = await request<PathQueryResponse>('/graph/path/query', {
     method: 'POST',
-    body: JSON.stringify({ source_name: sourceName, target_name: targetName, max_depth: 4, source_case: sourceCase }),
+    body: JSON.stringify({
+      source_name: sourceName, target_name: targetName, max_depth: maxDepth,
+      source_case: sourceCase, max_paths: maxPaths, min_length: minLength, node_types: nodeTypes,
+    }),
   });
   return {
-    nodes: result.nodes.map(mapNode),
-    edges: result.edges.map(mapEdge),
+    paths: result.paths.map((item: any) => ({
+      nodes: item.nodes.map(mapNode),
+      edges: item.edges.map(mapEdge),
+      length: item.length,
+      typeSequence: item.type_sequence,
+      nameSequence: item.name_sequence,
+    })),
+    totalPaths: result.total_paths,
+    sourceName: result.source_name,
+    targetName: result.target_name,
     description: result.description,
   };
 }
@@ -883,6 +925,14 @@ export async function comparePhysicianSubgraphs(disease = '中风'): Promise<Phy
       message: result.summary.message,
     },
   };
+}
+
+export async function analyzePhysicianCompare(disease: string, doctors: string[]): Promise<{ analysis: string; model: string }> {
+  const result = await request<{ analysis: string; model: string }>('/ai/analyze-physician-compare', {
+    method: 'POST',
+    body: JSON.stringify({ disease, doctors, node_summary: '', path_summary: '', subgraph_summary: '' }),
+  });
+  return result;
 }
 
 export async function downloadPhysicianSubgraphExport(disease = '中风'): Promise<void> {

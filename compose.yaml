@@ -8,6 +8,7 @@ services:
     environment:
       NEO4J_AUTH: ${NEO4J_AUTH:?Set NEO4J_AUTH in .env}
       NEO4J_PLUGINS: '["graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
       NEO4J_server_directories_import: /import
     volumes:
       - ./data:/data

@@ -275,6 +275,9 @@ class PhysicianCompareService:
         embeddings = self._build_subgraph_embedding_profiles(doctors, embedding_payload)
         embedding_points = self._build_doctor_embedding_points(embeddings, "Graph2Vec", vector_attr="graph2vec_vector")
         shared_node_count = sum(len(getattr(shared_nodes, category)) for category in self.SUBGRAPH_CATEGORY_ORDER)
+        vector_similarity_metrics = (
+            [] if not embedding_payload.get("vector_available", True) else list(self.SUBGRAPH_VECTOR_METRICS)
+        )
         return PhysicianSubgraphCompareResponse(
             disease=disease,
             doctor_count=len(doctors),
@@ -286,12 +289,18 @@ class PhysicianCompareService:
             embeddings=embeddings,
             embedding_points=embedding_points,
             summary=PhysicianSubgraphCompareSummary(
-                primary_similarity_metric="子图Jaccard，辅以 Graph2Vec",
+                primary_similarity_metric="子图Jaccard，辅以 Graph2Vec" if vector_similarity_metrics else "子图Jaccard",
                 shared_node_count=shared_node_count,
                 shared_edge_count=len(shared_edges),
                 pairwise_comparison_count=len(similarity_pairs),
-                vector_similarity_metrics=list(self.SUBGRAPH_VECTOR_METRICS),
-                message=self._subgraph_compare_summary_message(disease, doctors, shared_node_count, len(shared_edges)),
+                vector_similarity_metrics=vector_similarity_metrics,
+                message=self._subgraph_compare_summary_message(
+                    disease,
+                    doctors,
+                    shared_node_count,
+                    len(shared_edges),
+                    vector_similarity_metrics=vector_similarity_metrics,
+                ),
             ),
         )
 
@@ -316,6 +325,7 @@ class PhysicianCompareService:
         shared_edges = self._build_shared_subgraph_edges(subgraphs)
         profiles = self._build_subgraph_profiles(contexts, subgraphs, shared_nodes, shared_edges)
         embedding_payload = self._build_subgraph_embeddings(sorted({doctor.name for doctor in doctors}), subgraphs)
+        vector_available = embedding_payload.get("vector_available", True)
         similarity_pairs = self._build_subgraph_similarity_pairs(doctors, subgraphs, embedding_payload)
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
@@ -324,7 +334,8 @@ class PhysicianCompareService:
                 "disease": disease,
                 "doctor_count": len(doctors),
                 "doctors": [doctor.name for doctor in doctors],
-                "vector_metrics": list(self.SUBGRAPH_VECTOR_METRICS),
+                "vector_metrics": list(self.SUBGRAPH_VECTOR_METRICS) if vector_available else [],
+                "vector_available": vector_available,
             }))
             bundle.writestr("subgraph_jaccard_similarity.csv", self._csv_text(
                 [
@@ -1475,13 +1486,11 @@ class PhysicianCompareService:
     ) -> dict[str, object]:
         try:
             from karateclub import Graph2Vec
-        except ImportError:
+        except (ImportError, ModuleNotFoundError):
             try:
                 from karateclub.graph_embedding import Graph2Vec
-            except ModuleNotFoundError as exc:
-                raise ValueError("子图向量比较依赖 karateclub，请先进入 KG 环境再运行。") from exc
-        except ModuleNotFoundError as exc:
-            raise ValueError("子图向量比较依赖 karateclub，请先进入 KG 环境再运行。") from exc
+            except (ImportError, ModuleNotFoundError):
+                return {"vector_embeddings": {"Graph2Vec": {}}, "vector_available": False}
 
         self._ensure_karateclub_runtime()
 
@@ -2063,14 +2072,15 @@ class PhysicianCompareService:
             self._subgraph_pair_matrix(subgraph_result.doctors, subgraph_result.similarity_pairs, "subgraph_jaccard"),
             "Subgraph Jaccard",
         )
-        figures["graph2vec_similarity_heatmap.png"] = self._render_heatmap_figure(
-            modules,
-            "Graph2Vec 子图相似度",
-            subgraph_result.doctors,
-            self._subgraph_pair_matrix(subgraph_result.doctors, subgraph_result.similarity_pairs, "graph2vec_cosine"),
-            "Graph2Vec",
-        )
-        figures["graph2vec_scatter.png"] = self._render_scatter_figure(modules, "Graph2Vec 医家分布", subgraph_result.embedding_points)
+        if subgraph_result.embedding_points:
+            figures["graph2vec_similarity_heatmap.png"] = self._render_heatmap_figure(
+                modules,
+                "Graph2Vec 子图相似度",
+                subgraph_result.doctors,
+                self._subgraph_pair_matrix(subgraph_result.doctors, subgraph_result.similarity_pairs, "graph2vec_cosine"),
+                "Graph2Vec",
+            )
+            figures["graph2vec_scatter.png"] = self._render_scatter_figure(modules, "Graph2Vec 医家分布", subgraph_result.embedding_points)
         return figures
 
     def _build_report_docx(
@@ -2127,8 +2137,10 @@ class PhysicianCompareService:
         document.add_heading("四、核心子图比较结果", level=1)
         document.add_paragraph(self._subgraph_report_text(subgraph_result))
         self._append_docx_picture(document, figures["subgraph_jaccard_heatmap.png"], "图7 子图 Jaccard 热力图", Inches)
-        self._append_docx_picture(document, figures["graph2vec_similarity_heatmap.png"], "图8 Graph2Vec 相似度热力图", Inches)
-        self._append_docx_picture(document, figures["graph2vec_scatter.png"], "图9 Graph2Vec 医家分布图", Inches)
+        if "graph2vec_similarity_heatmap.png" in figures:
+            self._append_docx_picture(document, figures["graph2vec_similarity_heatmap.png"], "图8 Graph2Vec 相似度热力图", Inches)
+        if "graph2vec_scatter.png" in figures:
+            self._append_docx_picture(document, figures["graph2vec_scatter.png"], "图9 Graph2Vec 医家分布图", Inches)
         self._append_docx_table(document, table_payload["subgraph_pairwise_similarity.csv"])
 
         document.add_heading("五、附录", level=1)
@@ -2390,15 +2402,20 @@ class PhysicianCompareService:
                 for item in subgraph_result.similarity_pairs
             ]
         )
-        graph2vec_pair = self._top_pair(
-            [
-                {"label": f"{item.left_doctor} 与 {item.right_doctor}", "value": item.graph2vec_cosine}
-                for item in subgraph_result.similarity_pairs
-            ]
-        )
+        graph2vec_values = [item.graph2vec_cosine for item in subgraph_result.similarity_pairs]
+        if graph2vec_values and all(v == 0.0 for v in graph2vec_values):
+            graph2vec_text = "Graph2Vec 向量比较不可用（未安装 karateclub），暂以子图 Jaccard 为主。"
+        else:
+            graph2vec_pair = self._top_pair(
+                [
+                    {"label": f"{item.left_doctor} 与 {item.right_doctor}", "value": item.graph2vec_cosine}
+                    for item in subgraph_result.similarity_pairs
+                ]
+            )
+            graph2vec_text = f"Graph2Vec 相似度最高的医家对为 {graph2vec_pair['label']}（{graph2vec_pair['value']:.3f}）。"
         return (
             f"子图层显性比较中，子图 Jaccard 最高的医家对为 {pair['label']}（{pair['value']:.3f}）；"
-            f"Graph2Vec 相似度最高的医家对为 {graph2vec_pair['label']}（{graph2vec_pair['value']:.3f}）。"
+            f"{graph2vec_text}"
         )
 
     @staticmethod
@@ -2674,6 +2691,8 @@ class PhysicianCompareService:
         doctors: list[GraphNode],
         shared_node_count: int,
         shared_edge_count: int,
+        *,
+        vector_similarity_metrics: list[str] | None = None,
     ) -> str:
         if not doctors:
             return f"当前病名“{disease}”没有可比较的核心子图数据。"
@@ -2681,4 +2700,7 @@ class PhysicianCompareService:
             return f"当前只有 {doctors[0].name} 一位医家，先核对他的核心子图和审计表。"
         if shared_node_count == 0 and shared_edge_count == 0:
             return f"当前已比较 {len(doctors)} 位医家，但共同子结构还不明显，先重点看各医家的独有节点和独有边。"
+        tail = "" if (vector_similarity_metrics is None or vector_similarity_metrics) else "当前未安装 karateclub，Graph2Vec 向量比较已跳过。"
+        if tail:
+            return f"当前已比较 {len(doctors)} 位医家，主看子图Jaccard，核心共同结构和审计结果都已汇总在下方。{tail}"
         return f"当前已比较 {len(doctors)} 位医家，主看子图Jaccard，核心共同结构和审计结果都已汇总在下方。"

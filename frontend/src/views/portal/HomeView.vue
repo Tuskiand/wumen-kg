@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ENTITY_TYPES } from '@/constants/entityTypes';
+import { useSchema } from '@/composables/useSchema';
 import { SOURCE_OPTIONS } from '@/constants/sourceOptions';
 import TcmIcon from '@/components/tcm/TcmIcon.vue';
 import TcmPanel from '@/components/tcm/TcmPanel.vue';
 import TcmStatCard from '@/components/tcm/TcmStatCard.vue';
 
-const entityTypes = ENTITY_TYPES;
+const { entityTypes } = useSchema();
 const sourceOptions = SOURCE_OPTIONS;
 const quickEntries = [
   { title: '知识检索', icon: 'search', to: '/portal/search' },

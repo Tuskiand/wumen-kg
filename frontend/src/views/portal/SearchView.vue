@@ -5,7 +5,7 @@ import { searchGraph } from '@/api';
 import TcmEmpty from '@/components/tcm/TcmEmpty.vue';
 import TcmPageShell from '@/components/tcm/TcmPageShell.vue';
 import TcmPanel from '@/components/tcm/TcmPanel.vue';
-import { ENTITY_TYPES } from '@/constants/entityTypes';
+import { useSchema } from '@/composables/useSchema';
 import { SOURCE_OPTIONS } from '@/constants/sourceOptions';
 import type { GraphNode } from '@/types';
 
@@ -25,7 +25,7 @@ const text = {
   summary: '摘要',
   action: '操作',
 };
-const entityTypes = ENTITY_TYPES;
+const { entityTypes } = useSchema();
 const sourceOptions = SOURCE_OPTIONS;
 const filters = reactive({
   query: '',

@@ -6,11 +6,15 @@ import TcmEmpty from '@/components/tcm/TcmEmpty.vue';
 import TcmPageShell from '@/components/tcm/TcmPageShell.vue';
 import TcmPanel from '@/components/tcm/TcmPanel.vue';
 import {
+  analyzePhysicianCompare,
   comparePhysicianNodes,
   comparePhysicianPaths,
   comparePhysicianSubgraphs,
   downloadPhysicianCompareReport,
   downloadPhysicianSubgraphExport,
+  getAiConfig,
+  testAiConnection,
+  updateAiConfig,
 } from '@/api';
 import {
   axisStyle,
@@ -91,6 +95,19 @@ const nodeSimilaritySourceLabels: Record<NodeSimilaritySource, string> = {
   explicit: '显性节点',
   fastrp: 'FastRP',
 };
+const aiAnalysis = ref('');
+const aiModel = ref('');
+const aiLoading = ref(false);
+const aiConfigVisible = ref(false);
+const aiConfigForm = reactive({
+  apiKey: '',
+  baseUrl: 'https://api.deepseek.com/v1',
+  model: 'deepseek-chat',
+});
+const aiConfigSaving = ref(false);
+const aiHasKey = ref(false);
+const aiTesting = ref(false);
+const aiTestResult = ref('');
 const timingState = reactive({
   totalMs: 0,
   nodeMs: 0,
@@ -153,17 +170,12 @@ const subgraphEmbeddingRows = computed(() => {
 });
 
 async function runAnalysis() {
-  const disease = filters.disease.trim();
-  if (!disease) {
-    ElMessage.warning('请输入病名');
-    return;
-  }
   loading.value = true;
   const totalStart = performance.now();
   try {
-    const nodePromise = timedCall(() => comparePhysicianNodes(disease));
-    const pathPromise = timedCall(() => comparePhysicianPaths(disease));
-    const subgraphPromise = timedCall(() => comparePhysicianSubgraphs(disease));
+    const nodePromise = timedCall(() => comparePhysicianNodes(filters.disease));
+    const pathPromise = timedCall(() => comparePhysicianPaths(filters.disease));
+    const subgraphPromise = timedCall(() => comparePhysicianSubgraphs(filters.disease));
     const [nodePayload, pathPayload, subgraphPayload] = await Promise.all([nodePromise, pathPromise, subgraphPromise]);
     nodeResult.value = nodePayload.result;
     pathResult.value = pathPayload.result;
@@ -172,10 +184,78 @@ async function runAnalysis() {
     timingState.pathMs = pathPayload.elapsedMs;
     timingState.subgraphMs = subgraphPayload.elapsedMs;
     timingState.totalMs = Math.round(performance.now() - totalStart);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '医家比较失败');
+    activeTab.value = 'nodes';
+    aiAnalysis.value = '';
+    aiModel.value = '';
   } finally {
     loading.value = false;
+  }
+}
+
+async function runAiAnalysis() {
+  aiLoading.value = true;
+  try {
+    const doctors = (nodeResult.value?.doctors ?? []).map((d) => d.name);
+    const result = await analyzePhysicianCompare(filters.disease, doctors);
+    aiAnalysis.value = result.analysis;
+    aiModel.value = result.model;
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+async function openAiConfig() {
+  try {
+    const config = await getAiConfig();
+    aiConfigForm.baseUrl = config.baseUrl;
+    aiConfigForm.model = config.model;
+    aiHasKey.value = config.hasKey;
+  } catch {
+    // 默认值
+  }
+  aiConfigForm.apiKey = '';
+  aiConfigVisible.value = true;
+}
+
+async function saveAiConfig() {
+  aiConfigSaving.value = true;
+  try {
+    const result = await updateAiConfig({
+      api_key: aiConfigForm.apiKey,
+      base_url: aiConfigForm.baseUrl,
+      model: aiConfigForm.model,
+    });
+    aiHasKey.value = result.hasKey;
+    aiConfigForm.apiKey = '';
+    ElMessage.success('AI 配置已保存');
+    aiConfigVisible.value = false;
+  } finally {
+    aiConfigSaving.value = false;
+  }
+}
+
+async function testConnection() {
+  aiTesting.value = true;
+  aiTestResult.value = '';
+  try {
+    const key = aiConfigForm.apiKey || (aiHasKey.value ? '已保存的 Key' : '');
+    if (!key) {
+      ElMessage.warning('请先输入 API Key');
+      return;
+    }
+    const result = await testAiConnection({
+      api_key: aiConfigForm.apiKey,
+      base_url: aiConfigForm.baseUrl,
+      model: aiConfigForm.model,
+    });
+    aiTestResult.value = result.message;
+    if (result.success) {
+      ElMessage.success(result.message);
+    } else {
+      ElMessage.error(result.message);
+    }
+  } finally {
+    aiTesting.value = false;
   }
 }
 
@@ -973,6 +1053,63 @@ onBeforeUnmount(() => {
         </template>
       </el-tab-pane>
     </el-tabs>
+
+    <div v-if="nodeResult && nodeResult.doctorCount" class="glass-panel section-card compare-section" style="margin-top: 20px;">
+      <div class="section-card-header">
+        <h2 class="section-title">AI 分析解读</h2>
+        <div class="section-card-actions">
+          <el-button text size="small" @click="openAiConfig">配置模型</el-button>
+          <el-button type="warning" plain :loading="aiLoading" @click="runAiAnalysis" size="small">
+            {{ aiLoading ? '分析中...' : 'AI 分析解读' }}
+          </el-button>
+        </div>
+      </div>
+      <div v-if="aiAnalysis" class="ai-analysis-content">
+        <div class="ai-analysis-text">{{ aiAnalysis }}</div>
+        <div v-if="aiModel" class="ai-analysis-meta">模型：{{ aiModel }}</div>
+      </div>
+      <div v-else class="ai-analysis-empty">
+        <el-tag v-if="aiHasKey" type="info" effect="plain">点击「AI 分析解读」按钮，由大模型生成易理解的综合分析</el-tag>
+        <el-tag v-else type="warning" effect="plain">尚未配置大模型，请先点击「配置模型」设置 API Key</el-tag>
+      </div>
+    </div>
+
+    <el-dialog v-model="aiConfigVisible" title="AI 大模型配置" width="520px">
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 16px;">
+        配置用于医家比较 AI 分析解读的大模型参数，支持 OpenAI 兼容协议。
+      </p>
+      <el-alert
+        v-if="aiHasKey"
+        type="success"
+        title="已配置 API Key，可直接使用 AI 分析解读功能"
+        :closable="false"
+        style="margin-bottom: 16px"
+      />
+      <el-form label-width="100px">
+        <el-form-item label="API Key">
+          <el-input
+            v-model="aiConfigForm.apiKey"
+            type="password"
+            show-password
+            :placeholder="aiHasKey ? '已保存（留空则保持不变）' : '请输入大模型 API Key'"
+          />
+        </el-form-item>
+        <el-form-item label="Base URL">
+          <el-input v-model="aiConfigForm.baseUrl" placeholder="https://api.deepseek.com/v1" />
+        </el-form-item>
+        <el-form-item label="模型名称">
+          <el-input v-model="aiConfigForm.model" placeholder="deepseek-chat" />
+        </el-form-item>
+        <el-form-item>
+          <el-button :loading="aiTesting" @click="testConnection">测试连接</el-button>
+          <span v-if="aiTestResult" :class="aiTestResult.includes('成功') ? 'test-ok' : 'test-fail'" style="margin-left: 12px; font-size: 13px;">{{ aiTestResult }}</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiConfigVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiConfigSaving" @click="saveAiConfig">保存</el-button>
+      </template>
+    </el-dialog>
   </TcmPageShell>
 </template>
 
@@ -1257,5 +1394,44 @@ onBeforeUnmount(() => {
   .conclusion-text {
     font-size: 18px;
   }
+}
+
+.section-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.section-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-analysis-content {
+  background: rgba(251, 247, 239, 0.6);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.ai-analysis-text {
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  color: var(--color-text-primary);
+}
+
+.ai-analysis-meta {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.ai-analysis-empty {
+  padding: 16px 0;
 }
 </style>

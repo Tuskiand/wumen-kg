@@ -64,11 +64,24 @@ class PathQueryRequest(BaseModel):
     target_name: str
     max_depth: int = Field(default=4, ge=1, le=8)
     source_case: str = ''
+    max_paths: int = Field(default=10, ge=1, le=50)
+    min_length: int = Field(default=1, ge=1, le=8)
+    node_types: list[str] = Field(default_factory=list)
+
+
+class QueryPathItem(BaseModel):
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    length: int
+    type_sequence: list[str] = Field(default_factory=list)
+    name_sequence: list[str] = Field(default_factory=list)
 
 
 class PathQueryResponse(BaseModel):
-    nodes: list[GraphNode]
-    edges: list[GraphEdge]
+    paths: list[QueryPathItem]
+    total_paths: int
+    source_name: str
+    target_name: str
     description: str
 
 

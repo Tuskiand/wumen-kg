@@ -6,8 +6,9 @@ from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.db.mysql import SessionLocal
+from app.db.mysql import SessionLocal, engine
 from app.db.neo4j import get_neo4j_manager
+from app.models.base import Base
 from app.services.user_service import UserService
 
 settings = get_settings()
@@ -16,6 +17,7 @@ neo4j_manager = get_neo4j_manager()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     if not settings.demo_mode:
         neo4j_manager.connect()

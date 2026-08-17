@@ -1,3 +1,3 @@
-from app.api.routes import admin, auth, graph, users
+from app.api.routes import admin, ai, auth, graph, users
 
-__all__ = ["auth", "graph", "admin", "users"]
+__all__ = ["auth", "graph", "admin", "users", "ai"]

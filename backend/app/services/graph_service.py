@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from neo4j.exceptions import Neo4jError
 
 from app.core.config import Settings
-from app.core.kg_rules import is_allowed_entity_type, is_allowed_relation_type, normalize_entity_type, relation_direction_matches
+from app.core.kg_rules import ENTITY_TYPES, TCM_RELATION_RULES, is_allowed_entity_type, is_allowed_relation_type, normalize_entity_type, relation_direction_matches
 from app.db.neo4j import get_neo4j_manager
 from app.repositories.neo4j_graph import Neo4jGraphRepository
 from app.schemas.graph import (
@@ -20,6 +20,7 @@ from app.schemas.graph import (
     PhysicianPathCompareResponse,
     PhysicianNodeCompareResponse,
     PhysicianSubgraphCompareResponse,
+    QueryPathItem,
     SearchResponse,
 )
 from app.services.physician_compare_service import PhysicianCompareService
@@ -64,11 +65,22 @@ class GraphService:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='Neo4j 当前不可用，无法统计图谱总量。')
         return self.repository.graph_totals()
 
-    def snapshot(self, source: str = '', source_case: str = '', entity_type: str = '') -> GraphSnapshot:
-        if self._use_repository():
-            return self.repository.snapshot(source, source_case, entity_type)
+    def get_schema(self) -> tuple[list[str], list[str]]:
+        if self.settings.demo_mode:
+            return list(ENTITY_TYPES), list(TCM_RELATION_RULES.keys())
+        if self.repository is None or not self._use_repository():
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='数据库不可用，无法获取类型信息。')
+        entity_types = self.repository.get_entity_types()
+        relation_types = self.repository.get_relation_types()
+        if not entity_types:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='数据库中未找到任何实体类型。')
+        return entity_types, relation_types
 
-        nodes = [node for node in NODES if self._node_matches(node, entity_type, source, source_case)]
+    def snapshot(self, source: str = '', source_case: str = '', entity_type: str = '', name: str = '') -> GraphSnapshot:
+        if self._use_repository():
+            return self.repository.snapshot(source, source_case, entity_type, name)
+
+        nodes = [node for node in NODES if self._node_matches(node, entity_type, source, source_case) and (not name or name in node.name)]
         node_ids = {node.id for node in nodes}
         edges = [edge for edge in EDGES if edge.source in node_ids and edge.target in node_ids and self._edge_matches(edge, source, source_case)]
         return GraphSnapshot(nodes=nodes, edges=edges)
@@ -89,31 +101,48 @@ class GraphService:
         neighbors = [node for node in NODES if node.id in related_ids and node.id != entity.id]
         return EntityDetailResponse(entity=entity, relations=relations, neighbors=neighbors)
 
-    def path_query(self, source_name: str, target_name: str, max_depth: int = 4, source_case: str = '') -> PathQueryResponse:
+    def path_query(self, source_name: str, target_name: str, max_depth: int = 4, source_case: str = '',
+                    max_paths: int = 10, min_length: int = 1, node_types: list[str] | None = None) -> PathQueryResponse:
         if max_depth < 1 or max_depth > 8:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='路径最大深度必须在 1 到 8 之间')
         if self._use_repository():
             try:
-                snapshot = self.repository.get_path(source_name, target_name, max_depth, source_case)
+                snapshots = self.repository.get_path(source_name, target_name, max_depth, source_case, max_paths, min_length, node_types)
             except ValueError as exc:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            paths = []
+            for snap in snapshots:
+                type_seq = [n.type for n in snap.nodes]
+                name_seq = [n.name for n in snap.nodes]
+                paths.append(QueryPathItem(
+                    nodes=snap.nodes, edges=snap.edges, length=len(snap.edges),
+                    type_sequence=type_seq, name_sequence=name_seq,
+                ))
             return PathQueryResponse(
-                nodes=snapshot.nodes,
-                edges=snapshot.edges,
+                paths=paths,
+                total_paths=len(paths),
+                source_name=source_name,
+                target_name=target_name,
                 description=(
-                    f'找到 {len(snapshot.edges)} 条路径关系'
-                    if snapshot.edges
+                    f'找到 {len(paths)} 条路径'
+                    if paths
                     else '未找到符合条件的路径'
                 ),
             )
 
-        snapshot = self._demo_shortest_path(source_name, target_name, max_depth, source_case)
+        snapshots = self._demo_shortest_path(source_name, target_name, max_depth, source_case)
         return PathQueryResponse(
-            nodes=snapshot.nodes,
-            edges=snapshot.edges,
+            paths=[QueryPathItem(
+                nodes=snapshots.nodes, edges=snapshots.edges, length=len(snapshots.edges),
+                type_sequence=[n.type for n in snapshots.nodes],
+                name_sequence=[n.name for n in snapshots.nodes],
+            )] if snapshots.nodes else [],
+            total_paths=1 if snapshots.nodes else 0,
+            source_name=source_name,
+            target_name=target_name,
             description=(
-                f'找到 {len(snapshot.edges)} 条路径关系'
-                if snapshot.edges
+                f'找到 {len(snapshots.edges)} 条路径关系'
+                if snapshots.edges
                 else '未找到符合条件的路径'
             ),
         )
